@@ -1,6 +1,11 @@
 import torch.nn as nn
 import torch.nn.init
 
+"""
+PyTorch implementation of VGG16 model.
+Paper: https://arxiv.org/abs/1409.1556
+"""
+
 class ConvolutionalNeuralNetwork(nn.Module):
     def __init__(self, input_size, in_channels, num_classes):
         super(ConvolutionalNeuralNetwork, self).__init__()
@@ -13,32 +18,55 @@ class ConvolutionalNeuralNetwork(nn.Module):
         self.init_weights()
 
     def create_network(self):
-        self.layers = nn.Sequential(*[
+        self.feature_extraction = nn.Sequential(*[
             nn.Conv2d(in_channels=self.in_channels, out_channels=64, kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
 
             nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
 
             nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
 
             nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.ReLU(inplace=True),
 
-            nn.Flatten(),
-            nn.Linear(512*4*4, 128),
+            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True),
-            nn.Linear(128, self.num_classes),
-
+            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+        ])
+        
+        self.fully_connected_network = nn.Sequential(*[
+            nn.Linear(512*2*2, 4096),
+            nn.ReLU(inplace=True),
+            nn.Dropout(),
+            nn.Linear(4096, 4096),
+            nn.ReLU(inplace=True),
+            nn.Dropout(),
+            nn.Linear(4096, self.num_classes),
+        ])
+        
+        self.output = nn.Sequential(*[
             nn.Softmax(dim=1)
         ])
 
@@ -61,42 +89,25 @@ class ConvolutionalNeuralNetwork(nn.Module):
                 # with a constant value of 0.
                 nn.init.constant_(module.bias, 0)
         
-    def forward(self,
-                x,
-                verbose=False):
+    def forward(self, x,):
         """Forward propagation of the model, implemented using PyTorch.
 
         Arguments:
             x {torch.Tensor} -- A Tensor of shape (N, D) representing input
             features to the model.
-            verbose {bool, optional} -- Indicates if the function prints the
-            output or not.
 
         Returns:
             torch.Tensor, torch.Tensor -- A Tensor of shape (N, C) representing
             the output of the final linear layer in the network. A Tensor of
             shape (N, C) representing the probabilities of each class given by
-            the softmax function.
+            the softmax function..
         """
 
-        # For each layer in the network
-        for i in range(len(self.layers) - 1):
-
-            # Call the forward() function of the layer
-            # and return the result to x.
-            x = self.layers[i](x)
-
-            if verbose:
-                # Print the output of the layer
-                print('Output of layer ' + str(i))
-                print(x, '\n')
-
-        # Apply the softmax function
-        probabilities = self.layers[-1](x)
-
-        if verbose:
-            print('Output of layer ' + str(len(self.layers) - 1))
-            print(probabilities, '\n')
+        x = self.feature_extraction(x)
+        x = x.flatten(1)
+        x = self.fully_connected_network(x)
+        
+        probabilities = self.output(x)
 
         return x, probabilities
     
